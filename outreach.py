@@ -283,7 +283,7 @@ def find_contact_email(base_url, org_data):
 def generate_content(org_name, org_description, org_body, url):
     """Use Gemini to create a tailored article + pitch email."""
     genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-1.5-flash')
+    model = genai.GenerativeModel('gemini-2.0-flash')
 
     prompt = f"""
 You are a senior financial writer and researcher working with Grade Capital.
