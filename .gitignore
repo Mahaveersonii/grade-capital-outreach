@@ -1,0 +1,12 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.env
+venv/
+.venv/
+
+# Keep sent_log.csv tracked (GitHub Actions commits updates to it)
+# But never commit .env or secrets
+.env
+*.key
