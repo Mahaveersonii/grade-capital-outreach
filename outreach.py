@@ -435,40 +435,73 @@ mahaveer@grade.capital | https://grade.capital
 # SEARCH QUERIES — rotated daily so targets stay fresh
 # ============================================================
 SEARCH_QUERIES = [
-    # Highly specific guest post queries — finds actual submission pages
+    # --- BLOGS & ONLINE PUBLICATIONS ---
     "crypto blockchain \"write for us\" \"guest post\" -site:reddit.com -site:quora.com",
     "fintech finance blog \"write for us\" cryptocurrency blockchain -site:reddit.com",
     "\"submit a guest post\" OR \"contribute an article\" crypto blockchain investment",
-    "\"guest post guidelines\" OR \"write for us\" India fintech crypto blockchain",
     "\"become a contributor\" OR \"guest author\" cryptocurrency finance blog",
-    "\"submit your article\" OR \"editorial guidelines\" fintech crypto blockchain",
-    "crypto investment blog \"guest post\" OR \"write for us\" contact editorial",
-    "blockchain technology blog \"contribute\" \"guest post\" finance",
-    "\"accepting guest posts\" crypto blockchain investment finance 2024 2025",
+    "\"accepting guest posts\" crypto blockchain investment finance 2025",
     "India \"write for us\" fintech startup crypto blockchain technology blog",
-    "\"guest blogger\" OR \"contribute\" personal finance crypto investment blog",
-    "\"editorial submissions\" OR \"pitch us\" fintech crypto blockchain media",
-    "CA chartered accountant finance blog India \"write for us\" crypto tax",
-    "\"submit article\" OR \"guest post\" alternative investment crypto derivatives",
-    "web3 DeFi blog \"write for us\" OR \"guest post\" editorial contact",
     "\"contribute to our blog\" cryptocurrency fintech investment India",
+    "web3 DeFi blog \"write for us\" OR \"guest post\" editorial contact",
     "\"looking for contributors\" OR \"call for writers\" crypto finance blockchain",
     "startup entrepreneur blog India \"guest post\" crypto blockchain fintech",
-    "\"article submission\" OR \"pitch\" finance technology crypto investment media",
-    "\"paid guest post\" OR \"sponsored content\" crypto blockchain finance -scam",
+
+    # --- MAGAZINES (digital & print) ---
+    "cryptocurrency blockchain magazine \"contribute\" OR \"submit article\" OR \"editorial submissions\"",
+    "fintech investment magazine \"write for us\" OR \"guest contributor\" OR \"pitch us\"",
+    "India finance business magazine \"submit article\" OR \"contributor guidelines\"",
+    "digital assets crypto magazine editorial submissions guidelines contact",
+    "\"finance magazine\" OR \"investment magazine\" \"guest article\" blockchain crypto",
+    "technology magazine India \"write for us\" blockchain crypto fintech 2025",
+    "\"business magazine\" India \"submit\" OR \"contribute\" OR \"editorial\" crypto blockchain",
+
+    # --- RESEARCH ORGANIZATIONS & THINK TANKS ---
+    "blockchain research organization \"call for papers\" OR \"submit research\" OR \"guest post\"",
+    "crypto finance think tank \"contribute\" OR \"submit\" research article 2025",
+    "fintech research institute India \"contribute\" OR \"guest author\" OR \"submit article\"",
+    "\"call for articles\" OR \"call for submissions\" blockchain cryptocurrency finance",
+    "digital finance research organization editorial submissions 2024 2025",
+    "India financial research \"contribute\" crypto blockchain technology policy",
+    "\"policy brief\" OR \"research brief\" fintech blockchain crypto submit contribute",
+
+    # --- ACADEMIC & PROFESSIONAL JOURNALS ---
+    "\"open access journal\" blockchain cryptocurrency finance \"submit article\"",
+    "fintech academic journal \"author guidelines\" OR \"submission\" 2024 2025",
+    "finance economics journal \"submit\" blockchain crypto investment open access",
+    "\"call for papers\" blockchain cryptocurrency finance journal 2025",
+    "CFA institute \"guest article\" OR \"contribute\" crypto investment research",
+    "SSRN finance crypto blockchain working paper submit open access",
+
+    # --- INDUSTRY ASSOCIATIONS & PROFESSIONAL BODIES ---
+    "CA ICAI chartered accountant association newsletter \"guest article\" crypto tax blockchain",
+    "fintech association India \"submit article\" OR \"guest contributor\" 2025",
+    "\"professional body\" OR \"trade association\" finance crypto blockchain editorial",
+    "CFA CPA finance professionals \"write for us\" OR \"guest post\" crypto investment",
+    "\"industry report\" OR \"industry publication\" blockchain crypto finance contribute",
+
+    # --- NEWSLETTERS & MEDIA WITH CONTRIBUTOR PROGRAMS ---
+    "crypto blockchain investment newsletter \"guest contributor\" OR \"write for us\"",
+    "fintech finance newsletter India \"contribute\" OR \"submit\" article",
+    "\"op-ed\" OR \"opinion piece\" OR \"contributed article\" blockchain cryptocurrency finance media",
+    "India startup finance news \"contributor\" OR \"write for us\" crypto blockchain",
+    "\"guest columnist\" OR \"contributed content\" fintech crypto finance news submit",
 ]
 
-# Domains to skip — paywalled, non-editorial, or irrelevant
+# Domains to skip — social media, paywalled, or irrelevant
 SKIP_DOMAINS = [
+    # Social / aggregator
     'reddit.com', 'youtube.com', 'twitter.com', 'x.com', 'facebook.com',
     'linkedin.com', 'wikipedia.org', 'amazon.com', 'google.com', 'instagram.com',
     'tiktok.com', 'quora.com', 'medium.com', 'substack.com', 'pinterest.com',
     'yelp.com', 'trustpilot.com', 'glassdoor.com', 'indeed.com',
-    # Big paywalled publications that don't accept guest posts
+    # Big paywalled / institutional (don't accept guest posts)
     'wealthmanagement.com', 'rothschildandco.com', 'advisorperspectives.com',
     'wsj.com', 'ft.com', 'bloomberg.com', 'reuters.com', 'economist.com',
-    'forbes.com', 'businessinsider.com', 'techcrunch.com',
+    'forbes.com', 'businessinsider.com', 'techcrunch.com', 'cnbc.com',
     'investopedia.com', 'morningstar.com', 'seekingalpha.com',
+    'coindesk.com', 'cointelegraph.com', 'theblock.co', 'decrypt.co',
+    'bitgo.com', 'pwmnet.com', 'tciwealth.com', 'avaloq.com',
 ]
 
 
@@ -870,13 +903,26 @@ def main():
     sent_log      = load_sent_log()
     contacted     = 0
 
-    # Rotate search query by day-of-year
-    day_index = today.timetuple().tm_yday % len(SEARCH_QUERIES)
-    query     = SEARCH_QUERIES[day_index]
-    print(f"Search query: {query}\n")
+    # Pick 2 different queries per day — one rotated by day, one random
+    # Covers blogs, magazines, research orgs, journals, associations all in one run
+    day_index  = today.timetuple().tm_yday % len(SEARCH_QUERIES)
+    query1     = SEARCH_QUERIES[day_index]
+    query2     = random.choice([q for q in SEARCH_QUERIES if q != query1])
+    print(f"Search query 1: {query1}")
+    print(f"Search query 2: {query2}\n")
 
-    results = search_organizations(query, num=30)
+    results1 = search_organizations(query1, num=20)
+    results2 = search_organizations(query2, num=20)
+    # Merge and deduplicate by URL
+    seen_urls = set()
+    results   = []
+    for r in results1 + results2:
+        u = r.get('link', '')
+        if u and u not in seen_urls:
+            seen_urls.add(u)
+            results.append(r)
     random.shuffle(results)  # randomise order each run
+    print(f"Total unique candidates: {len(results)}\n")
 
     for result in results:
         if contacted >= ORGS_PER_DAY:
