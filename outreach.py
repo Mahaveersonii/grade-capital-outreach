@@ -16,7 +16,8 @@ import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from bs4 import BeautifulSoup
-import google.generativeai as genai
+from google import genai
+from google.genai import types
 
 # ============================================================
 # CONFIGURATION (all values from GitHub Secrets)
@@ -476,10 +477,13 @@ def load_sent_log():
         with open(LOG_FILE, 'r', encoding='utf-8') as f:
             reader = csv.DictReader(f)
             for row in reader:
-                if row.get('url'):
-                    sent.add(row['url'].lower().strip())
-                if row.get('email'):
-                    sent.add(row['email'].lower().strip())
+                # Only skip orgs where email was actually SENT successfully
+                # Failed attempts (no_email, scrape_failed, generation_failed) get retried
+                if row.get('status') == 'sent':
+                    if row.get('url'):
+                        sent.add(row['url'].lower().strip())
+                    if row.get('email'):
+                        sent.add(row['email'].lower().strip())
     return sent
 
 
@@ -730,8 +734,7 @@ def format_research_for_prompt(papers):
 
 def generate_content(org_name, org_description, org_body, url):
     """Search research papers, then use Gemini to create a tailored article + pitch email."""
-    genai.configure(api_key=GEMINI_API_KEY)
-    model = genai.GenerativeModel('gemini-2.0-flash')
+    client = genai.Client(api_key=GEMINI_API_KEY)
 
     # --- Step 1: Fetch relevant research papers ---
     print(f"    Searching research papers...")
@@ -790,8 +793,11 @@ Content tone (inferred from their site): {org_body[:800]}
 """
 
     try:
-        response = model.generate_content(prompt)
-        text     = response.text
+        response = client.models.generate_content(
+            model='gemini-2.0-flash',
+            contents=prompt,
+        )
+        text = response.text
 
         subject = text.split('===SUBJECT===')[1].split('===PITCH===')[0].strip()
         pitch   = text.split('===PITCH===')[1].split('===ARTICLE===')[0].strip()
