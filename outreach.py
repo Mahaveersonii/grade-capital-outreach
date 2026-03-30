@@ -601,11 +601,146 @@ def find_contact_email(base_url, org_data):
     return None
 
 
+RESEARCH_QUERIES = [
+    "cryptocurrency blockchain investment institutional adoption research paper 2024 2025",
+    "Bitcoin store of value digital gold academic research 2024",
+    "crypto derivatives risk management hedge fund research paper",
+    "DeFi decentralized finance protocol revenue analysis research 2024 2025",
+    "real world asset tokenization institutional blockchain research 2024 2025",
+    "India crypto regulation VDA tax blockchain policy research",
+    "Ethereum Solana Polygon blockchain scalability research paper 2025",
+    "crypto asset portfolio diversification non-correlation research 2024",
+    "stablecoin CBDC digital currency research paper 2024 2025",
+    "blockchain financial inclusion emerging markets research India",
+    "crypto market microstructure institutional liquidity research 2024",
+    "Web3 tokenization real estate capital markets research 2025",
+]
+
+RESEARCH_SOURCES = [
+    "site:ssrn.com",
+    "site:papers.ssrn.com",
+    "site:scholar.google.com",
+    "site:bis.org",           # Bank for International Settlements
+    "site:imf.org",           # IMF working papers
+    "site:federalreserve.gov",# US Federal Reserve research
+    "site:rbi.org.in",        # RBI working papers
+    "site:nber.org",          # NBER papers
+    "site:brookings.edu",     # Brookings Institution
+    "site:cfa.institute",     # CFA Institute research
+]
+
+
+def fetch_research_papers(topic_hint):
+    """Search for and extract key findings from research papers relevant to the article topic."""
+    research_findings = []
+
+    # Pick 2 random research sources and 1 query to keep it fast
+    sources   = random.sample(RESEARCH_SOURCES, 2)
+    base_query = random.choice(RESEARCH_QUERIES)
+
+    # Bias query toward topic if we can detect it
+    topic_lower = topic_hint.lower()
+    if any(w in topic_lower for w in ['tax', 'ca', 'chartered', 'compliance', 'audit']):
+        base_query = "India crypto VDA tax compliance research paper 2024 2025"
+    elif any(w in topic_lower for w in ['rwa', 'real world', 'tokeniz', 'asset']):
+        base_query = "real world asset tokenization institutional blockchain research 2024 2025"
+    elif any(w in topic_lower for w in ['bitcoin', 'btc', 'store of value', 'gold']):
+        base_query = "Bitcoin store of value digital gold institutional research 2024 2025"
+    elif any(w in topic_lower for w in ['defi', 'protocol', 'ethereum', 'solana']):
+        base_query = "DeFi protocol revenue institutional adoption research 2024 2025"
+    elif any(w in topic_lower for w in ['india', 'indian', 'gift city', 'sebi', 'rbi']):
+        base_query = "India blockchain crypto regulation financial inclusion research 2025"
+
+    for source in sources:
+        query = f"{base_query} {source}"
+        try:
+            resp = requests.post(
+                'https://google.serper.dev/search',
+                headers={'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'},
+                json={'q': query, 'num': 5},
+                timeout=10,
+            )
+            results = resp.json().get('organic', [])
+
+            for result in results[:3]:
+                paper_url     = result.get('link', '')
+                paper_title   = result.get('title', '')
+                paper_snippet = result.get('snippet', '')
+
+                if not paper_url or not paper_title:
+                    continue
+
+                # Try to scrape abstract/key findings from the paper page
+                try:
+                    headers = {'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36'}
+                    r = requests.get(paper_url, headers=headers, timeout=10)
+                    soup = BeautifulSoup(r.text, 'html.parser')
+
+                    # Remove nav/script/style
+                    for tag in soup(['script', 'style', 'nav', 'footer', 'header']):
+                        tag.decompose()
+
+                    # Try to get abstract specifically
+                    abstract_el = soup.find(id=re.compile(r'abstract', re.I)) or \
+                                  soup.find(class_=re.compile(r'abstract', re.I))
+                    if abstract_el:
+                        content = abstract_el.get_text(separator=' ', strip=True)[:600]
+                    else:
+                        content = ' '.join(soup.get_text(separator=' ', strip=True).split())[:600]
+
+                    if len(content) > 100:
+                        research_findings.append({
+                            'title':   paper_title,
+                            'url':     paper_url,
+                            'excerpt': content,
+                            'snippet': paper_snippet,
+                        })
+                        print(f"    [Research] Found: {paper_title[:60]}...")
+                except Exception:
+                    # Even if scraping fails, use the snippet
+                    if paper_snippet:
+                        research_findings.append({
+                            'title':   paper_title,
+                            'url':     paper_url,
+                            'excerpt': paper_snippet,
+                            'snippet': paper_snippet,
+                        })
+
+        except Exception as e:
+            print(f"    [Research search error] {e}")
+
+        time.sleep(1)  # polite delay between searches
+
+    return research_findings[:6]  # cap at 6 papers
+
+
+def format_research_for_prompt(papers):
+    """Format extracted research papers into a clean prompt section."""
+    if not papers:
+        return "No additional research papers found for this run."
+
+    lines = []
+    for i, p in enumerate(papers, 1):
+        lines.append(f"Paper {i}: {p['title']}")
+        lines.append(f"Source: {p['url']}")
+        lines.append(f"Key findings/abstract: {p['excerpt']}")
+        lines.append("")
+    return '\n'.join(lines)
+
+
 def generate_content(org_name, org_description, org_body, url):
-    """Use Gemini to create a tailored article + pitch email."""
+    """Search research papers, then use Gemini to create a tailored article + pitch email."""
     genai.configure(api_key=GEMINI_API_KEY)
     model = genai.GenerativeModel('gemini-2.0-flash')
 
+    # --- Step 1: Fetch relevant research papers ---
+    print(f"    Searching research papers...")
+    topic_hint = f"{org_description} {org_body[:300]}"
+    papers = fetch_research_papers(topic_hint)
+    research_section = format_research_for_prompt(papers)
+    print(f"    Found {len(papers)} research papers")
+
+    # --- Step 2: Generate article + pitch with full context ---
     prompt = f"""
 You are a senior financial writer and researcher working with Grade Capital.
 Your task: produce (1) a tailored pitch email and (2) a full exclusive article for the publication below.
@@ -616,8 +751,11 @@ Website     : {url}
 Description : {org_description}
 Content tone (inferred from their site): {org_body[:800]}
 
-=== GRADE CAPITAL CONTEXT ===
+=== GRADE CAPITAL PROPRIETARY RESEARCH (6 CHAPTERS) ===
 {GRADE_CAPITAL_CONTEXT}
+
+=== ADDITIONAL RESEARCH PAPERS (freshly sourced — use findings to add depth) ===
+{research_section}
 
 === ARTICLE INSTRUCTIONS ===
 - Length: 1,500–2,000 words
@@ -625,15 +763,17 @@ Content tone (inferred from their site): {org_body[:800]}
   (e.g., if it's a CA/tax publication → focus on VDA taxation + derivatives tax advantage;
    if institutional finance → focus on Bitcoin ETF inflows + RWA tokenization;
    if startup/entrepreneur → focus on the founding story + India's crypto opportunity)
-- Synthesise data points uniquely — the article must NOT read like anything already on Google
-- Weave in real, verifiable statistics (BlackRock $115B ETF, Goldman 71% survey, JPMorgan Kinexys $1.5T, etc.)
-- Do NOT make it a Grade Capital advertisement — make it a genuinely valuable, research-backed piece
+- SYNTHESISE both the Grade Capital chapter research AND the external research papers above
+- The article must NOT read like anything already on Google — combine proprietary insights with fresh research
+- Cite research papers naturally within the article (e.g., "A 2024 SSRN paper found that...")
+- Weave in real, verifiable statistics from both sources
+- Do NOT make it a Grade Capital advertisement — make it genuinely valuable and research-backed
 - End with EXACTLY this author bio line:
   "Mahaveer Soni is Marketing Manager at Grade Capital (grade.capital), India's first regulated crypto derivatives fund."
 
 === PITCH EMAIL INSTRUCTIONS ===
 - Max 180 words — professional, concise
-- Mention this is an exclusive article not published anywhere else
+- Mention this is an exclusive, research-backed article not published anywhere else
 - State clearly: we offer the article free of charge in exchange for a byline crediting
   Mahaveer Soni and a mention of Grade Capital with a link to grade.capital
 - Match the publication's tone (formal vs conversational)
