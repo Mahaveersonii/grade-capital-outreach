@@ -435,34 +435,40 @@ mahaveer@grade.capital | https://grade.capital
 # SEARCH QUERIES — rotated daily so targets stay fresh
 # ============================================================
 SEARCH_QUERIES = [
-    "crypto blockchain finance magazine \"write for us\" OR \"submit article\" OR \"guest post\"",
-    "financial technology editorial \"contribute\" OR \"submission guidelines\" cryptocurrency",
-    "fintech blog \"write for us\" crypto investment blockchain 2024 2025",
-    "investment newsletter \"guest contributor\" OR \"guest author\" blockchain digital assets",
-    "cryptocurrency media site editorial submission contact",
-    "blockchain technology publication \"contribute an article\" OR \"guest post\"",
-    "financial literacy platform guest post crypto blockchain India",
-    "DeFi Web3 publication \"write for us\" OR \"contribute\"",
-    "alternative investment magazine editorial submission blockchain",
-    "wealth management blog guest post cryptocurrency fintech",
-    "personal finance editorial \"submit\" crypto investing article",
-    "India fintech technology blog \"write for us\" blockchain",
-    "digital assets institutional finance publication submission",
-    "crypto investment research blog contributor guidelines",
-    "financial advisory newsletter guest article blockchain",
-    "entrepreneurship finance startup blog \"guest post\" crypto",
-    "tax finance crypto India blog editorial contribution",
-    "hedge fund alternative assets publication submission 2024",
-    "ETF investment blog \"write for us\" cryptocurrency",
-    "global finance magazine editorial crypto article submission",
+    # Highly specific guest post queries — finds actual submission pages
+    "crypto blockchain \"write for us\" \"guest post\" -site:reddit.com -site:quora.com",
+    "fintech finance blog \"write for us\" cryptocurrency blockchain -site:reddit.com",
+    "\"submit a guest post\" OR \"contribute an article\" crypto blockchain investment",
+    "\"guest post guidelines\" OR \"write for us\" India fintech crypto blockchain",
+    "\"become a contributor\" OR \"guest author\" cryptocurrency finance blog",
+    "\"submit your article\" OR \"editorial guidelines\" fintech crypto blockchain",
+    "crypto investment blog \"guest post\" OR \"write for us\" contact editorial",
+    "blockchain technology blog \"contribute\" \"guest post\" finance",
+    "\"accepting guest posts\" crypto blockchain investment finance 2024 2025",
+    "India \"write for us\" fintech startup crypto blockchain technology blog",
+    "\"guest blogger\" OR \"contribute\" personal finance crypto investment blog",
+    "\"editorial submissions\" OR \"pitch us\" fintech crypto blockchain media",
+    "CA chartered accountant finance blog India \"write for us\" crypto tax",
+    "\"submit article\" OR \"guest post\" alternative investment crypto derivatives",
+    "web3 DeFi blog \"write for us\" OR \"guest post\" editorial contact",
+    "\"contribute to our blog\" cryptocurrency fintech investment India",
+    "\"looking for contributors\" OR \"call for writers\" crypto finance blockchain",
+    "startup entrepreneur blog India \"guest post\" crypto blockchain fintech",
+    "\"article submission\" OR \"pitch\" finance technology crypto investment media",
+    "\"paid guest post\" OR \"sponsored content\" crypto blockchain finance -scam",
 ]
 
-# Domains to skip — not relevant for guest post outreach
+# Domains to skip — paywalled, non-editorial, or irrelevant
 SKIP_DOMAINS = [
     'reddit.com', 'youtube.com', 'twitter.com', 'x.com', 'facebook.com',
     'linkedin.com', 'wikipedia.org', 'amazon.com', 'google.com', 'instagram.com',
     'tiktok.com', 'quora.com', 'medium.com', 'substack.com', 'pinterest.com',
     'yelp.com', 'trustpilot.com', 'glassdoor.com', 'indeed.com',
+    # Big paywalled publications that don't accept guest posts
+    'wealthmanagement.com', 'rothschildandco.com', 'advisorperspectives.com',
+    'wsj.com', 'ft.com', 'bloomberg.com', 'reuters.com', 'economist.com',
+    'forbes.com', 'businessinsider.com', 'techcrunch.com',
+    'investopedia.com', 'morningstar.com', 'seekingalpha.com',
 ]
 
 
@@ -792,20 +798,29 @@ Content tone (inferred from their site): {org_body[:800]}
 ===END===
 """
 
-    try:
-        response = client.models.generate_content(
-            model='gemini-2.0-flash',
-            contents=prompt,
-        )
-        text = response.text
-
-        subject = text.split('===SUBJECT===')[1].split('===PITCH===')[0].strip()
-        pitch   = text.split('===PITCH===')[1].split('===ARTICLE===')[0].strip()
-        article = text.split('===ARTICLE===')[1].split('===END===')[0].strip()
-        return subject, pitch, article
-    except Exception as e:
-        print(f"  [Gemini error] {e}")
-        return None, None, None
+    # Retry up to 3 times with backoff for rate limit errors
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model='gemini-2.0-flash',
+                contents=prompt,
+            )
+            text = response.text
+            subject = text.split('===SUBJECT===')[1].split('===PITCH===')[0].strip()
+            pitch   = text.split('===PITCH===')[1].split('===ARTICLE===')[0].strip()
+            article = text.split('===ARTICLE===')[1].split('===END===')[0].strip()
+            return subject, pitch, article
+        except Exception as e:
+            err = str(e)
+            if '429' in err or 'RESOURCE_EXHAUSTED' in err:
+                wait = 60 * (attempt + 1)  # 60s, 120s, 180s
+                print(f"  [Gemini rate limit] Waiting {wait}s before retry {attempt+1}/3...")
+                time.sleep(wait)
+            else:
+                print(f"  [Gemini error] {e}")
+                return None, None, None
+    print(f"  [Gemini] All retries exhausted")
+    return None, None, None
 
 
 def send_email(to_email, subject, pitch, article, org_name):
