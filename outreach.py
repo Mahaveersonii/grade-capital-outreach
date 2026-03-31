@@ -13,10 +13,19 @@ import smtplib
 import datetime
 import re
 import json
+import io
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email import encoders
 from bs4 import BeautifulSoup
 import anthropic
+from reportlab.lib.pagesizes import A4
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.units import cm
+from reportlab.lib import colors
+from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
+from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
 
 # ============================================================
 # CONFIGURATION (all values from GitHub Secrets)
@@ -880,27 +889,230 @@ Content tone (inferred from their site): {org_body[:800]}
     return None, None, None
 
 
-def send_email(to_email, subject, pitch, article, org_name):
-    """Send pitch + article via Gmail SMTP."""
-    msg              = MIMEMultipart('alternative')
-    msg['Subject']   = subject
-    msg['From']      = f"Mahaveer Soni <{SENDER_EMAIL}>"
-    msg['To']        = to_email
+def markdown_to_reportlab(text, styles):
+    """
+    Convert markdown-style text into a list of ReportLab Paragraph flowables.
+    Handles: **bold**, # headings, ## subheadings, blank lines as spacers,
+    and regular paragraphs with justified alignment.
+    """
+    # Inline bold: convert **text** → <b>text</b> for ReportLab XML
+    def inline_bold(line):
+        return re.sub(r'\*\*(.+?)\*\*', r'<b>\1</b>', line)
 
+    flowables = []
+    lines = text.split('\n')
+
+    for line in lines:
+        stripped = line.strip()
+        if not stripped:
+            flowables.append(Spacer(1, 0.2 * cm))
+            continue
+
+        if stripped.startswith('### '):
+            content = inline_bold(stripped[4:])
+            flowables.append(Paragraph(content, styles['h3']))
+        elif stripped.startswith('## '):
+            content = inline_bold(stripped[3:])
+            flowables.append(Paragraph(content, styles['h2']))
+        elif stripped.startswith('# '):
+            content = inline_bold(stripped[2:])
+            flowables.append(Paragraph(content, styles['h1']))
+        elif stripped.startswith('- ') or stripped.startswith('* '):
+            content = inline_bold(stripped[2:])
+            flowables.append(Paragraph(f'• {content}', styles['bullet']))
+        else:
+            content = inline_bold(stripped)
+            flowables.append(Paragraph(content, styles['body']))
+
+    return flowables
+
+
+def build_article_pdf(subject, article, org_name):
+    """
+    Build a professionally structured PDF in memory and return the bytes.
+    """
+    buffer = io.BytesIO()
+
+    doc = SimpleDocTemplate(
+        buffer,
+        pagesize=A4,
+        leftMargin=2.5 * cm,
+        rightMargin=2.5 * cm,
+        topMargin=2.5 * cm,
+        bottomMargin=2.5 * cm,
+    )
+
+    base = getSampleStyleSheet()
+
+    # Custom styles
+    styles = {
+        'header_brand': ParagraphStyle(
+            'header_brand',
+            fontName='Helvetica-Bold',
+            fontSize=11,
+            textColor=colors.HexColor('#1a1a2e'),
+            alignment=TA_LEFT,
+            spaceAfter=2,
+        ),
+        'header_sub': ParagraphStyle(
+            'header_sub',
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.HexColor('#555555'),
+            alignment=TA_LEFT,
+            spaceAfter=8,
+        ),
+        'title': ParagraphStyle(
+            'title',
+            fontName='Helvetica-Bold',
+            fontSize=20,
+            textColor=colors.HexColor('#1a1a2e'),
+            alignment=TA_LEFT,
+            spaceBefore=12,
+            spaceAfter=6,
+            leading=26,
+        ),
+        'byline': ParagraphStyle(
+            'byline',
+            fontName='Helvetica-Oblique',
+            fontSize=9,
+            textColor=colors.HexColor('#777777'),
+            alignment=TA_LEFT,
+            spaceAfter=14,
+        ),
+        'h1': ParagraphStyle(
+            'h1_body',
+            fontName='Helvetica-Bold',
+            fontSize=14,
+            textColor=colors.HexColor('#1a1a2e'),
+            spaceBefore=14,
+            spaceAfter=6,
+        ),
+        'h2': ParagraphStyle(
+            'h2_body',
+            fontName='Helvetica-Bold',
+            fontSize=12,
+            textColor=colors.HexColor('#2c2c54'),
+            spaceBefore=10,
+            spaceAfter=4,
+        ),
+        'h3': ParagraphStyle(
+            'h3_body',
+            fontName='Helvetica-Bold',
+            fontSize=10,
+            textColor=colors.HexColor('#444444'),
+            spaceBefore=8,
+            spaceAfter=3,
+        ),
+        'body': ParagraphStyle(
+            'body_text',
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=colors.HexColor('#222222'),
+            alignment=TA_JUSTIFY,
+            leading=16,
+            spaceAfter=6,
+        ),
+        'bullet': ParagraphStyle(
+            'bullet_text',
+            fontName='Helvetica',
+            fontSize=10,
+            textColor=colors.HexColor('#222222'),
+            leftIndent=14,
+            spaceAfter=4,
+            leading=15,
+        ),
+        'footer': ParagraphStyle(
+            'footer_text',
+            fontName='Helvetica',
+            fontSize=8,
+            textColor=colors.HexColor('#888888'),
+            alignment=TA_CENTER,
+            spaceBefore=6,
+        ),
+    }
+
+    story = []
+
+    # ── Header ──────────────────────────────────────────────
+    story.append(Paragraph('GRADE CAPITAL', styles['header_brand']))
+    story.append(Paragraph(
+        "India's First Regulated Crypto Derivatives Fund  |  grade.capital",
+        styles['header_sub'],
+    ))
+    story.append(HRFlowable(width='100%', thickness=1.5,
+                             color=colors.HexColor('#1a1a2e'), spaceAfter=10))
+
+    # ── Article Title ────────────────────────────────────────
+    story.append(Paragraph(subject, styles['title']))
+    story.append(Paragraph(
+        f"Submitted for consideration — {org_name}  |  "
+        f"By Mahaveer Soni, Grade Capital  |  {datetime.date.today().strftime('%B %d, %Y')}",
+        styles['byline'],
+    ))
+    story.append(HRFlowable(width='100%', thickness=0.5,
+                             color=colors.HexColor('#cccccc'), spaceAfter=12))
+
+    # ── Article Body ─────────────────────────────────────────
+    story.extend(markdown_to_reportlab(article, styles))
+
+    # ── Footer ───────────────────────────────────────────────
+    story.append(Spacer(1, 0.6 * cm))
+    story.append(HRFlowable(width='100%', thickness=0.5,
+                             color=colors.HexColor('#cccccc'), spaceBefore=6))
+    story.append(Paragraph(
+        'Mahaveer Soni  |  Marketing Manager, Grade Capital  |  '
+        'mahaveer@grade.capital  |  https://grade.capital',
+        styles['footer'],
+    ))
+    story.append(Paragraph(
+        'Grade Capital is ISO 9001:2015 certified, FIU registered (VA00032718), '
+        'and PMLA compliant.',
+        styles['footer'],
+    ))
+
+    doc.build(story)
+    pdf_bytes = buffer.getvalue()
+    buffer.close()
+    return pdf_bytes
+
+
+def send_email(to_email, subject, pitch, article, org_name):
+    """Send pitch as email body + article as a structured PDF attachment."""
+    msg            = MIMEMultipart('mixed')
+    msg['Subject'] = subject
+    msg['From']    = f"Mahaveer Soni <{SENDER_EMAIL}>"
+    msg['To']      = to_email
+
+    # ── Plain-text pitch in email body ───────────────────────
     body = f"""{pitch}
 
-{"=" * 60}
-ARTICLE (ready to publish)
-{"=" * 60}
+---
+Please find the full article attached as a PDF, ready to publish.
 
-{article}
-
-{"=" * 60}
+Best regards,
 Mahaveer Soni
 Marketing Manager, Grade Capital
 mahaveer@grade.capital | https://grade.capital
 """
     msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+    # ── Generate + attach PDF ────────────────────────────────
+    try:
+        pdf_bytes = build_article_pdf(subject, article, org_name)
+        pdf_part  = MIMEBase('application', 'octet-stream')
+        pdf_part.set_payload(pdf_bytes)
+        encoders.encode_base64(pdf_part)
+        safe_title = re.sub(r'[^\w\s-]', '', subject)[:60].strip().replace(' ', '_')
+        pdf_part.add_header(
+            'Content-Disposition',
+            'attachment',
+            filename=f"GradeCapital_Article_{safe_title}.pdf",
+        )
+        msg.attach(pdf_part)
+    except Exception as e:
+        print(f"  [PDF error] {e} — sending plain text fallback")
+        msg.attach(MIMEText(article, 'plain', 'utf-8'))
 
     try:
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
