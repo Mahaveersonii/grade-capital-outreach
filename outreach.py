@@ -1066,8 +1066,7 @@ def build_article_pdf(subject, article, org_name):
         styles['footer'],
     ))
     story.append(Paragraph(
-        'Grade Capital is ISO 9001:2015 certified, FIU registered (VA00032718), '
-        'and PMLA compliant.',
+        'Grade Capital is ISO 9001:2015 certified and PMLA compliant.',
         styles['footer'],
     ))
 
