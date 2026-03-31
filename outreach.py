@@ -1158,26 +1158,51 @@ def run_self_test():
         print(f"  [SELF-TEST] Claude API FAILED: {e}")
         return False
 
-    # Step 2: Quick SMTP test — send the blurb to our own inbox
+    # Step 2: Build a test PDF
+    test_subject = f"Grade Capital — Self-Test Article ({datetime.date.today()})"
+    test_article = (
+        "# Why Crypto Derivatives Matter\n\n"
+        f"{test_blurb}\n\n"
+        "## Key Benefits\n\n"
+        "**Risk management**: Derivatives allow institutions to hedge exposure without "
+        "selling underlying positions.\n\n"
+        "**Capital efficiency**: Leveraged positions free up capital for other allocations.\n\n"
+        "## Conclusion\n\n"
+        "This is a **self-test PDF**. If **bold text** appears bold and headings are styled, "
+        "the PDF pipeline is working correctly."
+    )
     try:
-        msg = MIMEMultipart('alternative')
+        pdf_bytes = build_article_pdf(test_subject, test_article, "Self-Test")
+        print(f"  [SELF-TEST] PDF ✓ — generated {len(pdf_bytes)} bytes")
+    except Exception as e:
+        print(f"  [SELF-TEST] PDF FAILED: {e}")
+        return False
+
+    # Step 3: Send test email with PDF attached to our own inbox
+    try:
+        msg = MIMEMultipart('mixed')
         msg['Subject'] = f"[Grade Capital Outreach — Self-Test] {datetime.date.today()}"
         msg['From']    = f"Mahaveer Soni <{SENDER_EMAIL}>"
         msg['To']      = SENDER_EMAIL
         body = (
-            "This is an automated self-test sent before today's outreach run.\n"
-            "If you received this, Claude API + Gmail SMTP are both working.\n\n"
-            "--- Claude-generated sample ---\n\n"
-            f"{test_blurb}\n\n"
-            "--- End of self-test ---\n"
+            "Automated self-test before today's outreach run.\n"
+            "Claude API + SMTP + PDF generation all working.\n\n"
+            "Check the attached PDF — bold text should be bold, headings styled.\n\n"
+            "-- Grade Capital Outreach Bot"
         )
         msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        pdf_part = MIMEBase('application', 'octet-stream')
+        pdf_part.set_payload(pdf_bytes)
+        encoders.encode_base64(pdf_part)
+        pdf_part.add_header('Content-Disposition', 'attachment',
+                            filename=f"GradeCapital_SelfTest_{datetime.date.today()}.pdf")
+        msg.attach(pdf_part)
         with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
             server.ehlo()
             server.starttls()
             server.login(SENDER_EMAIL, EMAIL_PASSWORD)
             server.sendmail(SENDER_EMAIL, SENDER_EMAIL, msg.as_string())
-        print(f"  [SELF-TEST] SMTP ✓ — test email sent to {SENDER_EMAIL}")
+        print(f"  [SELF-TEST] SMTP ✓ — test email + PDF sent to {SENDER_EMAIL}")
     except Exception as e:
         print(f"  [SELF-TEST] SMTP FAILED: {e}")
         return False
