@@ -551,6 +551,103 @@ def log_result(org_name, url, email, subject, status):
         })
 
 
+def load_followup_targets():
+    """
+    Return a list of dicts for orgs that:
+      - Had status='sent' exactly 2 days ago (by date field)
+      - Have NOT already received a follow-up (no row with status='followup_sent' for that email)
+    Each dict: {org_name, url, email, subject}
+    """
+    if not os.path.exists(LOG_FILE):
+        return []
+
+    cutoff_date = (datetime.date.today() - datetime.timedelta(days=2)).strftime('%Y-%m-%d')
+
+    sent_rows   = []   # rows where status=sent on cutoff_date
+    followed_up = set()  # emails already followed-up
+
+    with open(LOG_FILE, 'r', encoding='utf-8') as f:
+        reader = csv.DictReader(f)
+        for row in reader:
+            email  = (row.get('email') or '').strip().lower()
+            status = (row.get('status') or '').strip()
+            date   = (row.get('date') or '')[:10]  # YYYY-MM-DD portion only
+
+            if status == 'followup_sent' and email:
+                followed_up.add(email)
+
+            if status == 'sent' and date == cutoff_date and email:
+                sent_rows.append({
+                    'org_name': row.get('org_name', ''),
+                    'url':      row.get('url', ''),
+                    'email':    email,
+                    'subject':  row.get('subject', ''),
+                })
+
+    # Return only those not yet followed up
+    return [r for r in sent_rows if r['email'] not in followed_up]
+
+
+def send_followup_email(to_email, org_name, original_subject):
+    """Send a short, polite follow-up nudge referencing the original pitch."""
+    try:
+        msg             = MIMEMultipart('alternative')
+        msg['Subject']  = f"Re: {original_subject}"
+        msg['From']     = f"Mahaveer Soni <{SENDER_EMAIL}>"
+        msg['To']       = to_email
+
+        body = (
+            f"Hi,\n\n"
+            f"I hope this message finds you well. I'm following up on the guest article "
+            f"proposal I sent to {org_name} two days ago regarding the above subject.\n\n"
+            f"We believe the article offers genuine value for your audience and aligns well "
+            f"with the topics your platform covers. I'd love to hear your thoughts and am "
+            f"happy to make any adjustments you may require.\n\n"
+            f"Looking forward to your prompt response.\n\n"
+            f"Warm regards,\n"
+            f"Mahaveer Soni\n"
+            f"Marketing Manager, Grade Capital\n"
+            f"mahaveer@grade.capital  |  https://grade.capital"
+        )
+
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(SENDER_EMAIL, EMAIL_PASSWORD)
+            server.sendmail(SENDER_EMAIL, to_email, msg.as_string())
+
+        return True
+
+    except Exception as exc:
+        print(f"    ❌ Follow-up email error: {exc}")
+        return False
+
+
+def run_followups():
+    """Check for orgs due a 2-day follow-up and send nudge emails."""
+    targets = load_followup_targets()
+
+    if not targets:
+        print("[follow-up] No organisations due a follow-up today.\n")
+        return
+
+    print(f"[follow-up] {len(targets)} organisation(s) due a follow-up today.")
+
+    for t in targets:
+        print(f"  → Following up: {t['org_name']} <{t['email']}>")
+        success = send_followup_email(t['email'], t['org_name'], t['subject'])
+        status  = 'followup_sent' if success else 'followup_failed'
+        log_result(t['org_name'], t['url'], t['email'], t['subject'], status)
+
+        if success:
+            print(f"    ✅ Follow-up sent!")
+        time.sleep(random.uniform(3, 6))
+
+    print()
+
+
 def search_organizations(query, num=20):
     """Call Serper (Google Search API) and return organic results."""
     try:
@@ -1225,6 +1322,9 @@ def main():
         print("\n[ABORT] Self-test failed. No outreach emails sent today.")
         print("Check ANTHROPIC_API_KEY and EMAIL_PASSWORD secrets.\n")
         raise SystemExit(1)
+
+    # --- Send follow-up emails to orgs contacted 2 days ago ---
+    run_followups()
 
     sent_log      = load_sent_log()
     contacted     = 0
