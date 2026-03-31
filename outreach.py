@@ -16,13 +16,12 @@ import json
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 from bs4 import BeautifulSoup
-from google import genai
-from google.genai import types
+import anthropic
 
 # ============================================================
 # CONFIGURATION (all values from GitHub Secrets)
 # ============================================================
-GEMINI_API_KEY   = os.environ.get('GEMINI_API_KEY', '')
+ANTHROPIC_API_KEY = os.environ.get('ANTHROPIC_API_KEY', '')
 SERPER_API_KEY   = os.environ.get('SERPER_API_KEY', '')
 SENDER_EMAIL     = os.environ.get('SENDER_EMAIL', 'mahaveer@grade.capital')
 EMAIL_PASSWORD   = os.environ.get('EMAIL_PASSWORD', '')
@@ -33,7 +32,7 @@ LOG_FILE         = 'sent_log.csv'
 
 # ============================================================
 # GRADE CAPITAL MASTER CONTEXT — FULL 6-CHAPTER CONTENT
-# (used to brief Gemini for every article it writes)
+# (used to brief Claude for every article it writes)
 # ============================================================
 GRADE_CAPITAL_CONTEXT = """
 === ABOUT GRADE CAPITAL ===
@@ -583,17 +582,28 @@ def scrape_org(url):
             'com','org','net','io','co','in','uk','au','ca','de','fr','sg',
             'info','biz','edu','gov','media','finance','tech','digital','blog',
         }
+        # Infrastructure/error-tracking domains — never editorial contacts
+        BLOCKED_DOMAINS = {
+            'sentry.io', 'ingest.sentry.io', 'example.com', 'test.com',
+            'noreply.com', 'no-reply.com', 'mailer.com', 'bounce.com',
+            'googleusercontent.com', 'amazonaws.com', 'cloudfront.net',
+        }
         filtered = []
         for e in raw_emails:
-            e = re.sub(r'^[^a-zA-Z0-9]+', '', e)  # strip HTML junk prefix like u003e
+            e = re.sub(r'^[^a-zA-Z0-9]+', '', e)   # strip non-alphanum prefix
+            e = re.sub(r'^u[0-9a-f]{4}', '', e)    # strip HTML unicode escapes e.g. u003e
+            e = re.sub(r'^(amp|gt|lt|quot);', '', e, flags=re.IGNORECASE)  # strip &amp; etc
             parts = e.split('@')
             if len(parts) != 2: continue
-            domain = parts[1].lower()
+            local, domain = parts[0], parts[1].lower()
             tld = domain.split('.')[-1]
-            if tld not in VALID_TLDS: continue                    # skip bootstrap@5.3.3
-            if len(domain) < 4 or len(e) > 60: continue          # skip junk lengths
-            if not re.match(r'^[\w.+\-]+$', parts[0]): continue  # skip malformed local
+            if tld not in VALID_TLDS: continue                      # skip bootstrap@5.3.3
+            if not tld.isalpha(): continue                          # skip numeric TLDs like swiper@12.1.2
+            if len(domain) < 4 or len(e) > 70: continue            # skip junk lengths
+            if not re.match(r'^[\w.+\-]+$', local): continue       # skip malformed local
             if e.lower().endswith(('.png','.jpg','.gif','.css','.js')): continue
+            if re.match(r'^[0-9a-f]{16,}$', local, re.IGNORECASE): continue  # skip MD5/hash locals like sentry IDs
+            if any(domain == bd or domain.endswith('.' + bd) for bd in BLOCKED_DOMAINS): continue
             filtered.append(e)
         # De-duplicate
         filtered = list(dict.fromkeys(filtered))
@@ -785,8 +795,8 @@ def format_research_for_prompt(papers):
 
 
 def generate_content(org_name, org_description, org_body, url):
-    """Search research papers, then use Gemini to create a tailored article + pitch email."""
-    client = genai.Client(api_key=GEMINI_API_KEY)
+    """Search research papers, then use Claude to create a tailored article + pitch email."""
+    client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
 
     # --- Step 1: Fetch relevant research papers ---
     print(f"    Searching research papers...")
@@ -847,25 +857,26 @@ Content tone (inferred from their site): {org_body[:800]}
     # Retry up to 3 times with backoff for rate limit errors
     for attempt in range(3):
         try:
-            response = client.models.generate_content(
-                model='gemini-2.0-flash',
-                contents=prompt,
+            response = client.messages.create(
+                model='claude-haiku-4-5-20251001',
+                max_tokens=4096,
+                messages=[{'role': 'user', 'content': prompt}],
             )
-            text = response.text
+            text = response.content[0].text
             subject = text.split('===SUBJECT===')[1].split('===PITCH===')[0].strip()
             pitch   = text.split('===PITCH===')[1].split('===ARTICLE===')[0].strip()
             article = text.split('===ARTICLE===')[1].split('===END===')[0].strip()
             return subject, pitch, article
         except Exception as e:
             err = str(e)
-            if '429' in err or 'RESOURCE_EXHAUSTED' in err:
-                wait = 60 * (attempt + 1)  # 60s, 120s, 180s
-                print(f"  [Gemini rate limit] Waiting {wait}s before retry {attempt+1}/3...")
+            if '429' in err or 'overloaded' in err.lower() or 'rate' in err.lower():
+                wait = 30 * (attempt + 1)  # 30s, 60s, 90s
+                print(f"  [Claude rate limit] Waiting {wait}s before retry {attempt+1}/3...")
                 time.sleep(wait)
             else:
-                print(f"  [Gemini error] {e}")
+                print(f"  [Claude error] {e}")
                 return None, None, None
-    print(f"  [Gemini] All retries exhausted")
+    print(f"  [Claude] All retries exhausted")
     return None, None, None
 
 
@@ -904,6 +915,66 @@ mahaveer@grade.capital | https://grade.capital
 
 
 # ============================================================
+# SELF-TEST — runs before main outreach loop every day
+# Sends one test email to mahaveer@grade.capital to confirm
+# Claude API + SMTP are both working before touching any orgs.
+# ============================================================
+def run_self_test():
+    """
+    1. Do a real Serper search for one generic finance topic.
+    2. Generate a short article using Claude API.
+    3. Send it to SENDER_EMAIL (mahaveer@grade.capital).
+    Returns True if both API and SMTP work, False otherwise.
+    """
+    print("\n[SELF-TEST] Verifying Claude API + SMTP before outreach...")
+
+    # Step 1: Quick Claude API test — generate a short test blurb
+    try:
+        client = anthropic.Anthropic(api_key=ANTHROPIC_API_KEY)
+        test_prompt = (
+            "Write exactly 3 sentences about why crypto derivatives are useful for "
+            "institutional investors. Be concise and professional."
+        )
+        response = client.messages.create(
+            model='claude-haiku-4-5-20251001',
+            max_tokens=200,
+            messages=[{'role': 'user', 'content': test_prompt}],
+        )
+        test_blurb = response.content[0].text.strip()
+        print(f"  [SELF-TEST] Claude API ✓ — got {len(test_blurb)} chars")
+    except Exception as e:
+        print(f"  [SELF-TEST] Claude API FAILED: {e}")
+        return False
+
+    # Step 2: Quick SMTP test — send the blurb to our own inbox
+    try:
+        msg = MIMEMultipart('alternative')
+        msg['Subject'] = f"[Grade Capital Outreach — Self-Test] {datetime.date.today()}"
+        msg['From']    = f"Mahaveer Soni <{SENDER_EMAIL}>"
+        msg['To']      = SENDER_EMAIL
+        body = (
+            "This is an automated self-test sent before today's outreach run.\n"
+            "If you received this, Claude API + Gmail SMTP are both working.\n\n"
+            "--- Claude-generated sample ---\n\n"
+            f"{test_blurb}\n\n"
+            "--- End of self-test ---\n"
+        )
+        msg.attach(MIMEText(body, 'plain', 'utf-8'))
+        with smtplib.SMTP(SMTP_HOST, SMTP_PORT) as server:
+            server.ehlo()
+            server.starttls()
+            server.login(SENDER_EMAIL, EMAIL_PASSWORD)
+            server.sendmail(SENDER_EMAIL, SENDER_EMAIL, msg.as_string())
+        print(f"  [SELF-TEST] SMTP ✓ — test email sent to {SENDER_EMAIL}")
+    except Exception as e:
+        print(f"  [SELF-TEST] SMTP FAILED: {e}")
+        return False
+
+    print("[SELF-TEST] All checks passed — proceeding with outreach.\n")
+    return True
+
+
+# ============================================================
 # MAIN
 # ============================================================
 def main():
@@ -912,6 +983,12 @@ def main():
     print(f"  Grade Capital Outreach — {today}")
     print(f"  Target: {ORGS_PER_DAY} organisations today")
     print(f"{'='*60}\n")
+
+    # --- Self-test: verify Claude API + SMTP before touching any org ---
+    if not run_self_test():
+        print("\n[ABORT] Self-test failed. No outreach emails sent today.")
+        print("Check ANTHROPIC_API_KEY and EMAIL_PASSWORD secrets.\n")
+        raise SystemExit(1)
 
     sent_log      = load_sent_log()
     contacted     = 0
