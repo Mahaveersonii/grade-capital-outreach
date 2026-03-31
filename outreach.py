@@ -577,13 +577,26 @@ def scrape_org(url):
             tag.decompose()
         body_text = ' '.join(soup.get_text(separator=' ', strip=True).split())[:3000]
 
-        # Emails in page source
+        # Emails in page source — strict validation
         raw_emails = re.findall(r'[\w.+\-]+@[\w\-]+\.[\w.]+', resp.text)
-        filtered   = [
-            e for e in raw_emails
-            if not e.lower().endswith(('.png', '.jpg', '.gif', '.css', '.js'))
-            and '.' in e.split('@')[-1]
-        ]
+        VALID_TLDS = {
+            'com','org','net','io','co','in','uk','au','ca','de','fr','sg',
+            'info','biz','edu','gov','media','finance','tech','digital','blog',
+        }
+        filtered = []
+        for e in raw_emails:
+            e = re.sub(r'^[^a-zA-Z0-9]+', '', e)  # strip HTML junk prefix like u003e
+            parts = e.split('@')
+            if len(parts) != 2: continue
+            domain = parts[1].lower()
+            tld = domain.split('.')[-1]
+            if tld not in VALID_TLDS: continue                    # skip bootstrap@5.3.3
+            if len(domain) < 4 or len(e) > 60: continue          # skip junk lengths
+            if not re.match(r'^[\w.+\-]+$', parts[0]): continue  # skip malformed local
+            if e.lower().endswith(('.png','.jpg','.gif','.css','.js')): continue
+            filtered.append(e)
+        # De-duplicate
+        filtered = list(dict.fromkeys(filtered))
         priority_emails = [
             e for e in filtered
             if any(w in e.lower() for w in ['edit', 'submit', 'contribut', 'write', 'contact', 'info', 'hello', 'guest'])
