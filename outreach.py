@@ -1326,84 +1326,104 @@ def main():
     # --- Send follow-up emails to orgs contacted 2 days ago ---
     run_followups()
 
-    sent_log      = load_sent_log()
-    contacted     = 0
+    sent_log = load_sent_log()
 
-    # Pick 2 different queries per day — one rotated by day, one random
-    # Covers blogs, magazines, research orgs, journals, associations all in one run
-    day_index  = today.timetuple().tm_yday % len(SEARCH_QUERIES)
-    query1     = SEARCH_QUERIES[day_index]
-    query2     = random.choice([q for q in SEARCH_QUERIES if q != query1])
-    print(f"Search query 1: {query1}")
-    print(f"Search query 2: {query2}\n")
+    # ── PHASE 1: Keep searching until ORGS_PER_DAY orgs WITH confirmed emails are found ──
+    # Only an org that yields a real contact email is added to the qualified list.
+    # We search in rounds (one query per round) until the target is met.
+    qualified     = []   # list of dicts: {url, org_name, email, snippet, org_data}
+    tried_urls    = set()
+    day_index     = today.timetuple().tm_yday
+    max_rounds    = 8    # safety cap — won't loop forever
+    round_num     = 0
 
-    results1 = search_organizations(query1, num=20)
-    results2 = search_organizations(query2, num=20)
-    # Merge and deduplicate by URL
-    seen_urls = set()
-    results   = []
-    for r in results1 + results2:
-        u = r.get('link', '')
-        if u and u not in seen_urls:
-            seen_urls.add(u)
-            results.append(r)
-    random.shuffle(results)  # randomise order each run
-    print(f"Total unique candidates: {len(results)}\n")
+    print(f"Target: {ORGS_PER_DAY} organisations with confirmed emails.\n")
 
-    for result in results:
-        if contacted >= ORGS_PER_DAY:
-            break
+    while len(qualified) < ORGS_PER_DAY and round_num < max_rounds:
+        round_num += 1
+        query = SEARCH_QUERIES[(day_index + round_num - 1) % len(SEARCH_QUERIES)]
+        print(f"[Round {round_num}] Query: {query}")
+        print(f"  Qualified so far: {len(qualified)}/{ORGS_PER_DAY}\n")
 
-        url      = result.get('link', '').strip()
-        org_name = result.get('title', url)
-        snippet  = result.get('snippet', '')
+        results = search_organizations(query, num=20)
+        random.shuffle(results)
 
-        if not url:
-            continue
+        for result in results:
+            if len(qualified) >= ORGS_PER_DAY:
+                break
 
-        # Skip irrelevant domains
-        if any(d in url.lower() for d in SKIP_DOMAINS):
-            continue
+            url      = result.get('link', '').strip()
+            org_name = result.get('title', url)
+            snippet  = result.get('snippet', '')
 
-        # Skip already contacted
-        if url.lower() in sent_log:
-            print(f"[skip] Already contacted: {org_name}")
-            continue
+            if not url or url in tried_urls:
+                continue
+            tried_urls.add(url)
 
-        print(f"\n[{contacted+1}] {org_name}")
-        print(f"    URL: {url}")
+            # Skip irrelevant or already contacted
+            if any(d in url.lower() for d in SKIP_DOMAINS):
+                continue
+            if url.lower() in sent_log:
+                print(f"  [skip] Already contacted: {org_name}")
+                continue
 
-        # --- Scrape ---
-        org_data = scrape_org(url)
-        if not org_data:
-            log_result(org_name, url, '', '', 'scrape_failed')
-            continue
+            print(f"  Checking: {org_name}")
+            print(f"    URL: {url}")
 
-        # --- Find email ---
-        email = find_contact_email(url, org_data)
-        if not email:
-            print(f"    No email found — skipping")
-            log_result(org_name, url, '', '', 'no_email')
-            continue
+            # --- Scrape ---
+            org_data = scrape_org(url)
+            if not org_data:
+                print(f"    Scrape failed — skipping")
+                log_result(org_name, url, '', '', 'scrape_failed')
+                continue
 
-        if email.lower() in sent_log:
-            print(f"    Email {email} already contacted — skipping")
-            continue
+            # --- Find email — only qualify if email found ---
+            email = find_contact_email(url, org_data)
+            if not email:
+                print(f"    No email found — not adding to queue")
+                log_result(org_name, url, '', '', 'no_email')
+                continue
 
-        print(f"    Email: {email}")
+            if email.lower() in sent_log:
+                print(f"    Email {email} already contacted — skipping")
+                continue
 
-        # --- Generate content ---
+            # ✅ Has a confirmed email — add to qualified list
+            print(f"    ✅ Qualified! Email: {email}")
+            qualified.append({
+                'url':      url,
+                'org_name': org_name,
+                'email':    email,
+                'snippet':  snippet,
+                'org_data': org_data,
+            })
+
+    print(f"\n{'='*60}")
+    print(f"  Phase 1 done. {len(qualified)} organisations qualified with emails.")
+    print(f"{'='*60}\n")
+
+    # ── PHASE 2: Generate content and send to every qualified org ──
+    contacted = 0
+    for org in qualified:
+        url      = org['url']
+        org_name = org['org_name']
+        email    = org['email']
+        snippet  = org['snippet']
+        org_data = org['org_data']
+
+        print(f"\n[{contacted+1}/{len(qualified)}] Sending to: {org_name} <{email}>")
+
         description = org_data.get('description') or snippet
         subject, pitch, article = generate_content(
             org_name, description, org_data.get('body', ''), url
         )
         if not subject:
+            print(f"    Content generation failed — skipping")
             log_result(org_name, url, email, '', 'generation_failed')
             continue
 
         print(f"    Subject: {subject}")
 
-        # --- Send ---
         success = send_email(email, subject, pitch, article, org_name)
         status  = 'sent' if success else 'email_failed'
         log_result(org_name, url, email, subject, status)
@@ -1414,13 +1434,12 @@ def main():
             sent_log.add(email.lower())
             contacted += 1
         else:
-            print(f"    ❌ Email failed")
+            print(f"    ❌ Email send failed")
 
-        # Polite rate-limiting between orgs
         time.sleep(random.uniform(4, 8))
 
     print(f"\n{'='*60}")
-    print(f"  Done. Contacted {contacted} organisations today.")
+    print(f"  Done. Sent to {contacted} organisations today.")
     print(f"{'='*60}\n")
 
 
