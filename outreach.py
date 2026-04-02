@@ -10,6 +10,8 @@ import time
 import random
 import requests
 import smtplib
+import imaplib
+import email as email_lib
 import datetime
 import re
 import json
@@ -588,6 +590,31 @@ def load_followup_targets():
     return [r for r in sent_rows if r['email'] not in followed_up]
 
 
+def has_replied(sender_email):
+    """
+    Check our inbox via IMAP for any email FROM sender_email.
+    Returns True if a reply exists (meaning they already responded).
+    """
+    try:
+        mail = imaplib.IMAP4_SSL('imap.gmail.com')
+        mail.login(SENDER_EMAIL, EMAIL_PASSWORD)
+        mail.select('INBOX')
+
+        # Search for any email from this sender address
+        status, data = mail.search(None, f'(FROM "{sender_email}")')
+        mail.logout()
+
+        if status == 'OK' and data[0]:
+            # data[0] is a space-separated list of message IDs; non-empty = reply exists
+            return True
+        return False
+
+    except Exception as exc:
+        print(f"    ⚠ IMAP check failed for {sender_email}: {exc}")
+        # If IMAP check fails, skip the follow-up to be safe (don't annoy someone who replied)
+        return True
+
+
 def send_followup_email(to_email, org_name, original_subject):
     """Send a short, polite follow-up nudge referencing the original pitch."""
     try:
@@ -636,7 +663,15 @@ def run_followups():
     print(f"[follow-up] {len(targets)} organisation(s) due a follow-up today.")
 
     for t in targets:
-        print(f"  → Following up: {t['org_name']} <{t['email']}>")
+        print(f"  → Checking: {t['org_name']} <{t['email']}>")
+
+        # Skip if they already replied to our original email
+        if has_replied(t['email']):
+            print(f"    ↩ Already replied — skipping follow-up")
+            log_result(t['org_name'], t['url'], t['email'], t['subject'], 'replied_skip')
+            continue
+
+        print(f"    No reply found — sending follow-up")
         success = send_followup_email(t['email'], t['org_name'], t['subject'])
         status  = 'followup_sent' if success else 'followup_failed'
         log_result(t['org_name'], t['url'], t['email'], t['subject'], status)
