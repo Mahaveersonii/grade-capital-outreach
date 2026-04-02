@@ -694,6 +694,12 @@ def scrape_org(url):
             'noreply.com', 'no-reply.com', 'mailer.com', 'bounce.com',
             'googleusercontent.com', 'amazonaws.com', 'cloudfront.net',
         }
+        # Generic public email providers — not real org contacts
+        PUBLIC_EMAIL_DOMAINS = {
+            'gmail.com', 'yahoo.com', 'yahoo.in', 'yahoo.co.in',
+            'hotmail.com', 'outlook.com', 'live.com', 'icloud.com',
+            'protonmail.com', 'rediffmail.com', 'ymail.com',
+        }
         filtered = []
         for e in raw_emails:
             e = re.sub(r'^[^a-zA-Z0-9]+', '', e)   # strip non-alphanum prefix
@@ -710,6 +716,7 @@ def scrape_org(url):
             if e.lower().endswith(('.png','.jpg','.gif','.css','.js')): continue
             if re.match(r'^[0-9a-f]{16,}$', local, re.IGNORECASE): continue  # skip MD5/hash locals like sentry IDs
             if any(domain == bd or domain.endswith('.' + bd) for bd in BLOCKED_DOMAINS): continue
+            if domain in PUBLIC_EMAIL_DOMAINS: continue                # skip gmail/yahoo — not real org emails
             filtered.append(e)
         # De-duplicate
         filtered = list(dict.fromkeys(filtered))
@@ -1331,8 +1338,9 @@ def main():
     # ── PHASE 1: Keep searching until ORGS_PER_DAY orgs WITH confirmed emails are found ──
     # Only an org that yields a real contact email is added to the qualified list.
     # We search in rounds (one query per round) until the target is met.
-    qualified     = []   # list of dicts: {url, org_name, email, snippet, org_data}
-    tried_urls    = set()
+    qualified       = []   # list of dicts: {url, org_name, email, snippet, org_data}
+    tried_urls      = set()
+    qualified_emails = set()  # track emails already queued this session — avoid duplicate sends
     day_index     = today.timetuple().tm_yday
     max_rounds    = 8    # safety cap — won't loop forever
     round_num     = 0
@@ -1388,8 +1396,13 @@ def main():
                 print(f"    Email {email} already contacted — skipping")
                 continue
 
+            if email.lower() in qualified_emails:
+                print(f"    Email {email} already queued this session — skipping duplicate")
+                continue
+
             # ✅ Has a confirmed email — add to qualified list
             print(f"    ✅ Qualified! Email: {email}")
+            qualified_emails.add(email.lower())
             qualified.append({
                 'url':      url,
                 'org_name': org_name,
