@@ -1,8 +1,10 @@
 name: Grade Capital Daily Outreach
 
 on:
+  repository_dispatch:
+    types: [daily-outreach]
   schedule:
-    # Runs at 04:00 UTC = 09:30 AM IST every day
+    # Backup: 04:00 UTC = 09:30 AM IST (may be delayed by GitHub free tier)
     - cron: '0 4 * * *'
   workflow_dispatch:
     # Also allows manual "Run workflow" trigger from GitHub UI
