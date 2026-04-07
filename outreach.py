@@ -445,57 +445,61 @@ mahaveer@grade.capital | https://grade.capital
 # SEARCH QUERIES — rotated daily so targets stay fresh
 # ============================================================
 SEARCH_QUERIES = [
-    # --- BLOGS & ONLINE PUBLICATIONS ---
-    "crypto blockchain \"write for us\" \"guest post\" -site:reddit.com -site:quora.com",
-    "fintech finance blog \"write for us\" cryptocurrency blockchain -site:reddit.com",
-    "\"submit a guest post\" OR \"contribute an article\" crypto blockchain investment",
-    "\"become a contributor\" OR \"guest author\" cryptocurrency finance blog",
-    "\"accepting guest posts\" crypto blockchain investment finance 2025",
+    # === INDIA-FOCUSED BLOGS & PUBLICATIONS (PRIMARY — ~60%) ===
     "India \"write for us\" fintech startup crypto blockchain technology blog",
+    "India crypto blockchain blog \"write for us\" OR \"guest post\" -site:reddit.com -site:quora.com",
     "\"contribute to our blog\" cryptocurrency fintech investment India",
-    "web3 DeFi blog \"write for us\" OR \"guest post\" editorial contact",
-    "\"looking for contributors\" OR \"call for writers\" crypto finance blockchain",
+    "Indian fintech blog \"guest post\" OR \"write for us\" blockchain crypto",
+    "India finance blog \"submit article\" OR \"guest contributor\" crypto blockchain",
     "startup entrepreneur blog India \"guest post\" crypto blockchain fintech",
+    "Indian cryptocurrency blog \"write for us\" OR \"contribute\" 2025 2026",
+    "India blockchain technology blog \"submit\" OR \"guest author\"",
+    "\"write for us\" Indian finance investment crypto tax blockchain",
+    "India web3 DeFi blog \"write for us\" OR \"guest post\" editorial",
 
-    # --- MAGAZINES (digital & print) ---
-    "cryptocurrency blockchain magazine \"contribute\" OR \"submit article\" OR \"editorial submissions\"",
-    "fintech investment magazine \"write for us\" OR \"guest contributor\" OR \"pitch us\"",
+    # === INDIA MAGAZINES & BUSINESS MEDIA ===
     "India finance business magazine \"submit article\" OR \"contributor guidelines\"",
-    "digital assets crypto magazine editorial submissions guidelines contact",
-    "\"finance magazine\" OR \"investment magazine\" \"guest article\" blockchain crypto",
     "technology magazine India \"write for us\" blockchain crypto fintech 2025",
     "\"business magazine\" India \"submit\" OR \"contribute\" OR \"editorial\" crypto blockchain",
+    "Indian business magazine \"guest article\" OR \"contribute\" fintech crypto",
+    "India digital magazine fintech crypto blockchain \"submit\" OR \"write for us\"",
+    "Indian startup magazine \"write for us\" OR \"guest post\" fintech blockchain",
 
-    # --- RESEARCH ORGANIZATIONS & THINK TANKS ---
-    "blockchain research organization \"call for papers\" OR \"submit research\" OR \"guest post\"",
-    "crypto finance think tank \"contribute\" OR \"submit\" research article 2025",
-    "fintech research institute India \"contribute\" OR \"guest author\" OR \"submit article\"",
-    "\"call for articles\" OR \"call for submissions\" blockchain cryptocurrency finance",
-    "digital finance research organization editorial submissions 2024 2025",
-    "India financial research \"contribute\" crypto blockchain technology policy",
-    "\"policy brief\" OR \"research brief\" fintech blockchain crypto submit contribute",
-
-    # --- ACADEMIC & PROFESSIONAL JOURNALS ---
-    "\"open access journal\" blockchain cryptocurrency finance \"submit article\"",
-    "fintech academic journal \"author guidelines\" OR \"submission\" 2024 2025",
-    "finance economics journal \"submit\" blockchain crypto investment open access",
-    "\"call for papers\" blockchain cryptocurrency finance journal 2025",
-    "CFA institute \"guest article\" OR \"contribute\" crypto investment research",
-    "SSRN finance crypto blockchain working paper submit open access",
-
-    # --- INDUSTRY ASSOCIATIONS & PROFESSIONAL BODIES ---
+    # === INDIA PROFESSIONAL BODIES & ASSOCIATIONS ===
     "CA ICAI chartered accountant association newsletter \"guest article\" crypto tax blockchain",
     "fintech association India \"submit article\" OR \"guest contributor\" 2025",
-    "\"professional body\" OR \"trade association\" finance crypto blockchain editorial",
-    "CFA CPA finance professionals \"write for us\" OR \"guest post\" crypto investment",
-    "\"industry report\" OR \"industry publication\" blockchain crypto finance contribute",
+    "India NASSCOM fintech blockchain \"contribute\" OR \"guest post\"",
+    "Indian professional body finance crypto blockchain editorial contribute",
+    "ICAI journal \"submit\" OR \"contribute\" cryptocurrency taxation India",
+    "India CFA institute \"guest article\" OR \"contribute\" crypto investment",
 
-    # --- NEWSLETTERS & MEDIA WITH CONTRIBUTOR PROGRAMS ---
-    "crypto blockchain investment newsletter \"guest contributor\" OR \"write for us\"",
+    # === INDIA RESEARCH & THINK TANKS ===
+    "fintech research institute India \"contribute\" OR \"guest author\" OR \"submit article\"",
+    "India financial research \"contribute\" crypto blockchain technology policy",
+    "Indian think tank blockchain crypto fintech \"submit\" OR \"call for papers\"",
+    "IFSCA GIFT City research \"contribute\" OR \"submit\" blockchain tokenization",
+    "India digital finance research \"call for papers\" OR \"submit\" blockchain 2025",
+
+    # === INDIA NEWSLETTERS & NEWS PLATFORMS ===
     "fintech finance newsletter India \"contribute\" OR \"submit\" article",
-    "\"op-ed\" OR \"opinion piece\" OR \"contributed article\" blockchain cryptocurrency finance media",
     "India startup finance news \"contributor\" OR \"write for us\" crypto blockchain",
-    "\"guest columnist\" OR \"contributed content\" fintech crypto finance news submit",
+    "Indian crypto news \"guest columnist\" OR \"write for us\" OR \"contribute\"",
+    "\"op-ed\" OR \"opinion piece\" blockchain cryptocurrency finance India media",
+    "Indian fintech news \"contributed content\" OR \"guest contributor\" crypto",
+
+    # === GLOBAL WITH INDIA RELEVANCE (SECONDARY — ~25%) ===
+    "crypto blockchain \"write for us\" \"guest post\" India emerging markets -site:reddit.com -site:quora.com",
+    "\"submit a guest post\" OR \"contribute an article\" crypto blockchain India investment",
+    "fintech finance blog \"write for us\" cryptocurrency blockchain India regulation",
+    "\"accepting guest posts\" crypto blockchain investment finance India 2025",
+    "web3 DeFi blog \"write for us\" OR \"guest post\" India regulation editorial",
+
+    # === GLOBAL (MINIMAL — ~15%) ===
+    "crypto blockchain \"write for us\" \"guest post\" -site:reddit.com -site:quora.com",
+    "cryptocurrency blockchain magazine \"contribute\" OR \"submit article\" OR \"editorial submissions\"",
+    "blockchain research organization \"call for papers\" OR \"submit research\" OR \"guest post\"",
+    "\"open access journal\" blockchain cryptocurrency finance \"submit article\"",
+    "\"call for papers\" blockchain cryptocurrency finance journal 2025",
 ]
 
 # Domains to skip — social media, paywalled, or irrelevant
@@ -689,7 +693,7 @@ def search_organizations(query, num=20):
         resp = requests.post(
             'https://google.serper.dev/search',
             headers={'X-API-KEY': SERPER_API_KEY, 'Content-Type': 'application/json'},
-            json={'q': query, 'num': num, 'gl': 'us', 'hl': 'en'},
+            json={'q': query, 'num': num, 'gl': 'in', 'hl': 'en'},
             timeout=15,
         )
         resp.raise_for_status()
@@ -816,28 +820,37 @@ def find_contact_email(base_url, org_data):
 
 
 RESEARCH_QUERIES = [
+    # India-focused research (primary)
+    "India crypto regulation VDA tax blockchain policy research 2024 2025",
+    "India cryptocurrency taxation Section 115BBH research paper",
+    "IFSCA GIFT City blockchain tokenization India research 2025",
+    "India fintech blockchain adoption research paper 2024 2025",
+    "blockchain financial inclusion emerging markets India research",
+    "India digital rupee CBDC RBI stablecoin research paper 2024 2025",
+    "India crypto derivatives regulation IFSCA research",
+    "Indian cryptocurrency market institutional adoption research 2025",
+    "Polygon Solana Indian blockchain ecosystem research paper",
+    # Global with India relevance
     "cryptocurrency blockchain investment institutional adoption research paper 2024 2025",
     "Bitcoin store of value digital gold academic research 2024",
-    "crypto derivatives risk management hedge fund research paper",
-    "DeFi decentralized finance protocol revenue analysis research 2024 2025",
     "real world asset tokenization institutional blockchain research 2024 2025",
-    "India crypto regulation VDA tax blockchain policy research",
-    "Ethereum Solana Polygon blockchain scalability research paper 2025",
+    "crypto derivatives risk management hedge fund research paper",
     "crypto asset portfolio diversification non-correlation research 2024",
-    "stablecoin CBDC digital currency research paper 2024 2025",
-    "blockchain financial inclusion emerging markets research India",
-    "crypto market microstructure institutional liquidity research 2024",
-    "Web3 tokenization real estate capital markets research 2025",
 ]
 
 RESEARCH_SOURCES = [
+    # India-specific sources (prioritized)
+    "site:rbi.org.in",        # RBI working papers
+    "site:ifsca.gov.in",      # IFSCA publications
+    "site:sebi.gov.in",       # SEBI research
+    "site:nipfp.org.in",      # National Institute of Public Finance & Policy
+    "site:icai.org",          # ICAI — Institute of Chartered Accountants of India
+    # Global academic/research
     "site:ssrn.com",
     "site:papers.ssrn.com",
     "site:scholar.google.com",
     "site:bis.org",           # Bank for International Settlements
     "site:imf.org",           # IMF working papers
-    "site:federalreserve.gov",# US Federal Reserve research
-    "site:rbi.org.in",        # RBI working papers
     "site:nber.org",          # NBER papers
     "site:brookings.edu",     # Brookings Institution
     "site:cfa.institute",     # CFA Institute research
@@ -972,9 +985,13 @@ Content tone (inferred from their site): {org_body[:800]}
 
 === ARTICLE INSTRUCTIONS ===
 - Length: 1,500–2,000 words
+- PRIMARY AUDIENCE: Indian readers — Indian investors, Indian CAs, Indian finance professionals, Indian startups.
+  Frame everything from an Indian perspective FIRST. Use Indian examples (₹, lakh, crore, ITR forms, SEBI, RBI, IFSCA).
+  Reference Indian regulations (Section 115BBH, 194S, PMLA), Indian institutions, and Indian market context.
+  Global data is fine as supporting evidence, but the core narrative must be India-centric.
 - Tailor topic, depth, and tone precisely to THIS publication's audience
   (e.g., if it's a CA/tax publication → focus on VDA taxation + derivatives tax advantage;
-   if institutional finance → focus on Bitcoin ETF inflows + RWA tokenization;
+   if institutional finance → focus on Bitcoin ETF inflows + RWA tokenization + GIFT City;
    if startup/entrepreneur → focus on the founding story + India's crypto opportunity)
 - SYNTHESISE both the Grade Capital chapter research AND the external research papers above
 - The article must NOT read like anything already on Google — combine proprietary insights with fresh research
