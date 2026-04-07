@@ -982,13 +982,15 @@ Content tone (inferred from their site): {org_body[:800]}
 - Weave in real, verifiable statistics from both sources
 - Do NOT make it a Grade Capital advertisement — make it genuinely valuable and research-backed
 - End with EXACTLY this author bio line:
-  "Mahaveer Soni is Marketing Manager at Grade Capital (grade.capital), India's first regulated crypto derivatives fund."
+  "Mahaveer Soni is Marketing Manager at Grade Capital (https://grade.capital/), India's first regulated crypto derivatives fund."
+- The author bio MUST contain a clickable hyperlink to https://grade.capital/
 
 === PITCH EMAIL INSTRUCTIONS ===
 - Max 180 words — professional, concise
 - Mention this is an exclusive, research-backed article not published anywhere else
-- State clearly: we offer the article free of charge in exchange for a byline crediting
-  Mahaveer Soni and a mention of Grade Capital with a link to grade.capital
+- State clearly: we offer the article free of charge in exchange for two backlinks:
+  1) a backlink to Mahaveer Soni's profile/name (linked to grade.capital/team or author page)
+  2) a backlink to Grade Capital's website: https://grade.capital/
 - Match the publication's tone (formal vs conversational)
 - Do NOT sound like a mass email — reference their publication specifically
 
