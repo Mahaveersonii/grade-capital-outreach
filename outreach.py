@@ -28,6 +28,64 @@ from reportlab.lib.units import cm
 from reportlab.lib import colors
 from reportlab.platypus import SimpleDocTemplate, Paragraph, Spacer, HRFlowable
 from reportlab.lib.enums import TA_LEFT, TA_CENTER, TA_JUSTIFY
+from reportlab.pdfbase import pdfmetrics
+from reportlab.pdfbase.ttfonts import TTFont
+
+# ── Register a Unicode font that supports ₹ (Indian Rupee sign) ──
+# Try multiple font paths: macOS → Linux (GitHub Actions) → fallback to Helvetica
+_UNICODE_FONT = 'Helvetica'  # fallback
+_UNICODE_FONT_BOLD = 'Helvetica-Bold'
+_UNICODE_FONT_ITALIC = 'Helvetica-Oblique'
+
+_FONT_CANDIDATES = [
+    # macOS
+    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+    # Ubuntu / GitHub Actions (install via apt: fonts-noto-core or fonts-dejavu)
+    '/usr/share/fonts/truetype/noto/NotoSans-Regular.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSans.ttf',
+]
+_BOLD_CANDIDATES = [
+    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',  # Arial Unicode has no separate bold
+    '/usr/share/fonts/truetype/noto/NotoSans-Bold.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSansBold.ttf',
+]
+_ITALIC_CANDIDATES = [
+    '/System/Library/Fonts/Supplemental/Arial Unicode.ttf',
+    '/usr/share/fonts/truetype/noto/NotoSans-Italic.ttf',
+    '/usr/share/fonts/truetype/dejavu/DejaVuSans-Oblique.ttf',
+    '/usr/share/fonts/truetype/freefont/FreeSansOblique.ttf',
+]
+
+for path in _FONT_CANDIDATES:
+    if os.path.exists(path):
+        try:
+            pdfmetrics.registerFont(TTFont('UnicodeFont', path))
+            _UNICODE_FONT = 'UnicodeFont'
+            break
+        except Exception:
+            pass
+
+for path in _BOLD_CANDIDATES:
+    if os.path.exists(path):
+        try:
+            pdfmetrics.registerFont(TTFont('UnicodeFontBold', path))
+            _UNICODE_FONT_BOLD = 'UnicodeFontBold'
+            break
+        except Exception:
+            pass
+
+for path in _ITALIC_CANDIDATES:
+    if os.path.exists(path):
+        try:
+            pdfmetrics.registerFont(TTFont('UnicodeFontItalic', path))
+            _UNICODE_FONT_ITALIC = 'UnicodeFontItalic'
+            break
+        except Exception:
+            pass
+
+print(f"[PDF Font] Using: {_UNICODE_FONT} (bold: {_UNICODE_FONT_BOLD})")
 
 # ============================================================
 # CONFIGURATION (all values from GitHub Secrets)
@@ -47,7 +105,7 @@ LOG_FILE         = 'sent_log.csv'
 # ============================================================
 GRADE_CAPITAL_CONTEXT = """
 === ABOUT GRADE CAPITAL ===
-Grade Capital is India's first fully regulated, professionally managed crypto derivatives fund.
+Grade Capital is India's first fully managed, professionally structured crypto derivatives fund.
 Website: https://grade.capital
 Founded: January 1, 2023 | Inception NAV: $10.00 USDT
 Current NAV: $132.15 USDT (Feb 20, 2026) | Total Return: +1,221.50% | CAGR: 127.67%
@@ -169,9 +227,14 @@ Loss carry-forward | Not allowed | 4 years
 TDS | 1% on transfers >₹10,000 | Standard provisions
 ITR form | ITR-2 | ITR-3
 
-REAL MONEY DIFFERENCE:
-₹10 lakh profit: Spot = ₹3L tax | Derivatives (20% bracket) = ₹2L tax → ₹1L saved
-₹1 crore profit: Spot = ₹30L tax | Derivatives (20% bracket) = ₹20L tax → ₹10L saved per year
+REAL MONEY DIFFERENCE (Old Tax Regime, FY 2025-26):
+₹10 lakh speculative income: Spot crypto = ₹3L tax (flat 30%) | Derivatives = taxed at slab rate
+  Slab breakdown for ₹10L (old regime): ₹0-2.5L nil + ₹2.5-5L @5% + ₹5-10L @20% = ₹1.125L tax → save ₹1.875L
+₹1 crore speculative income: Spot crypto = ₹30L tax (flat 30%)
+  Derivatives slab: ₹0-2.5L nil + ₹2.5-5L @5% + ₹5-10L @20% + ₹10L-1Cr @30% = ~₹28.9L tax → save ~₹1.1L
+  PLUS: derivatives allow deducting all business expenses + 4-year loss carry-forward (spot allows NOTHING)
+NOTE: At ₹1 crore, the slab rate advantage narrows (both ~30%), but the real savings come from
+  expense deductions and loss set-off which are COMPLETELY unavailable under Section 115BBH.
 
 SECTION 194S — TDS OBLIGATIONS:
 - Exchange handles TDS for on-platform trades
@@ -403,7 +466,7 @@ Bitcoin processed transactions without interruption. This contrast planted the s
 The founder spent 2016–2021 studying derivatives, crypto cycles, and institutional risk management
 across one full crypto cycle — the 2017 euphoria, 2018 crash, and 2022 collapse.
 Grade Capital launched January 1, 2023 with a $10 NAV and one mission:
-give Indian investors access to crypto the right way — regulated, managed, tax-efficient, transparent.
+give Indian investors access to crypto the right way — structured, managed, tax-efficient, transparent.
 
 === MACRO DATA POINTS FOR ARTICLES ===
 - BlackRock Bitcoin ETF: $115B+ AUM in first year — fastest ETF growth in financial history
@@ -999,7 +1062,7 @@ Content tone (inferred from their site): {org_body[:800]}
 - Weave in real, verifiable statistics from both sources
 - Do NOT make it a Grade Capital advertisement — make it genuinely valuable and research-backed
 - End with EXACTLY this author bio line:
-  "Mahaveer Soni is Marketing Manager at Grade Capital (https://grade.capital/), India's first regulated crypto derivatives fund."
+  "Mahaveer Soni is Marketing Manager at Grade Capital (https://grade.capital/), India's first structured crypto derivatives fund."
 - The author bio MUST contain a clickable hyperlink to https://grade.capital/
 
 === PITCH EMAIL INSTRUCTIONS ===
@@ -1102,11 +1165,11 @@ def build_article_pdf(subject, article, org_name):
 
     base = getSampleStyleSheet()
 
-    # Custom styles
+    # Custom styles — using Unicode font for ₹ rupee symbol support
     styles = {
         'header_brand': ParagraphStyle(
             'header_brand',
-            fontName='Helvetica-Bold',
+            fontName=_UNICODE_FONT_BOLD,
             fontSize=11,
             textColor=colors.HexColor('#1a1a2e'),
             alignment=TA_LEFT,
@@ -1114,7 +1177,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'header_sub': ParagraphStyle(
             'header_sub',
-            fontName='Helvetica',
+            fontName=_UNICODE_FONT,
             fontSize=8,
             textColor=colors.HexColor('#555555'),
             alignment=TA_LEFT,
@@ -1122,7 +1185,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'title': ParagraphStyle(
             'title',
-            fontName='Helvetica-Bold',
+            fontName=_UNICODE_FONT_BOLD,
             fontSize=20,
             textColor=colors.HexColor('#1a1a2e'),
             alignment=TA_LEFT,
@@ -1132,7 +1195,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'byline': ParagraphStyle(
             'byline',
-            fontName='Helvetica-Oblique',
+            fontName=_UNICODE_FONT_ITALIC,
             fontSize=9,
             textColor=colors.HexColor('#777777'),
             alignment=TA_LEFT,
@@ -1140,7 +1203,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'h1': ParagraphStyle(
             'h1_body',
-            fontName='Helvetica-Bold',
+            fontName=_UNICODE_FONT_BOLD,
             fontSize=14,
             textColor=colors.HexColor('#1a1a2e'),
             spaceBefore=14,
@@ -1148,7 +1211,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'h2': ParagraphStyle(
             'h2_body',
-            fontName='Helvetica-Bold',
+            fontName=_UNICODE_FONT_BOLD,
             fontSize=12,
             textColor=colors.HexColor('#2c2c54'),
             spaceBefore=10,
@@ -1156,7 +1219,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'h3': ParagraphStyle(
             'h3_body',
-            fontName='Helvetica-Bold',
+            fontName=_UNICODE_FONT_BOLD,
             fontSize=10,
             textColor=colors.HexColor('#444444'),
             spaceBefore=8,
@@ -1164,7 +1227,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'body': ParagraphStyle(
             'body_text',
-            fontName='Helvetica',
+            fontName=_UNICODE_FONT,
             fontSize=10,
             textColor=colors.HexColor('#222222'),
             alignment=TA_JUSTIFY,
@@ -1173,7 +1236,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'bullet': ParagraphStyle(
             'bullet_text',
-            fontName='Helvetica',
+            fontName=_UNICODE_FONT,
             fontSize=10,
             textColor=colors.HexColor('#222222'),
             leftIndent=14,
@@ -1182,7 +1245,7 @@ def build_article_pdf(subject, article, org_name):
         ),
         'footer': ParagraphStyle(
             'footer_text',
-            fontName='Helvetica',
+            fontName=_UNICODE_FONT,
             fontSize=8,
             textColor=colors.HexColor('#888888'),
             alignment=TA_CENTER,
@@ -1195,7 +1258,7 @@ def build_article_pdf(subject, article, org_name):
     # ── Header ──────────────────────────────────────────────
     story.append(Paragraph('GRADE CAPITAL', styles['header_brand']))
     story.append(Paragraph(
-        "India's First Regulated Crypto Derivatives Fund  |  grade.capital",
+        "India's First Structured Crypto Derivatives Fund  |  grade.capital",
         styles['header_sub'],
     ))
     story.append(HRFlowable(width='100%', thickness=1.5,
