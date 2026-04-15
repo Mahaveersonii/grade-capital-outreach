@@ -220,21 +220,58 @@ are NOT VDAs under Section 115BBH. They are speculative transactions under Secti
 
 COMPARISON TABLE:
 Feature | Spot Crypto (115BBH) | Derivatives (43(5) & 73)
-Tax rate | Flat 30% | Slab rate (5/20/30%)
-Deductions | Cost of acquisition only | All business expenses
-Loss set-off | Not allowed | Against speculative income
+Tax rate | Flat 30% always | Slab rate (new regime: 0/5/10/15/20/25/30%)
+Deductions | Cost of acquisition only | All business expenses deductible
+Loss set-off | Not allowed against ANY income | Against speculative income
 Loss carry-forward | Not allowed | 4 years
+87A rebate | Not applicable (flat rate) | Available (up to Rs 12L = zero tax under new regime)
 TDS | 1% on transfers >₹10,000 | Standard provisions
 ITR form | ITR-2 | ITR-3
 
-REAL MONEY DIFFERENCE (Old Tax Regime, FY 2025-26):
-₹10 lakh speculative income: Spot crypto = ₹3L tax (flat 30%) | Derivatives = taxed at slab rate
-  Slab breakdown for ₹10L (old regime): ₹0-2.5L nil + ₹2.5-5L @5% + ₹5-10L @20% = ₹1.125L tax → save ₹1.875L
-₹1 crore speculative income: Spot crypto = ₹30L tax (flat 30%)
-  Derivatives slab: ₹0-2.5L nil + ₹2.5-5L @5% + ₹5-10L @20% + ₹10L-1Cr @30% = ~₹28.9L tax → save ~₹1.1L
-  PLUS: derivatives allow deducting all business expenses + 4-year loss carry-forward (spot allows NOTHING)
-NOTE: At ₹1 crore, the slab rate advantage narrows (both ~30%), but the real savings come from
-  expense deductions and loss set-off which are COMPLETELY unavailable under Section 115BBH.
+INDIAN TAX SLABS FY 2025-26 (for reference in articles):
+New regime (default, Section 115BAC): 0-4L nil | 4-8L 5% | 8-12L 10% | 12-16L 15% | 16-20L 20% | 20-24L 25% | 24L+ 30%
+Old regime (optional, with 80C/80D/HRA): 0-2.5L nil | 2.5-5L 5% | 5-10L 20% | 10L+ 30%
++ 4% Health & Education Cess on all tax in both regimes
+
+REAL MONEY DIFFERENCE (FY 2025-26, Individual below 60):
+
+NEW TAX REGIME SLABS (Section 115BAC — default regime):
+  0-4L: Nil | 4-8L: 5% | 8-12L: 10% | 12-16L: 15% | 16-20L: 20% | 20-24L: 25% | 24L+: 30%
+  Rebate u/s 87A: Income up to Rs 12 lakh = ZERO tax
+
+OLD TAX REGIME SLABS (optional, allows 80C/80D/HRA deductions):
+  0-2.5L: Nil | 2.5-5L: 5% | 5-10L: 20% | 10L+: 30%
+  Rebate u/s 87A: Income up to Rs 5 lakh = ZERO tax
+
++ 4% Health & Education Cess on all tax amounts in both regimes
+
+SPOT CRYPTO (Section 115BBH): FLAT 30% on ALL gains — no slab benefit, no deductions, no loss set-off, no carry-forward.
+
+DERIVATIVES (Section 43(5) speculative business income): Taxed at applicable SLAB RATE + all business expenses deductible + losses can be set off against other speculative income + 4-year loss carry-forward.
+
+EXAMPLE 1 — Rs 10 lakh profit:
+  Spot crypto: 30% flat = Rs 3,00,000 tax (+ cess = Rs 3,12,000)
+  Derivatives (new regime): Rs 10L falls within 87A rebate limit of Rs 12L = Rs 0 tax!
+  Derivatives (old regime): 0-2.5L nil + 2.5-5L @5% (Rs 12,500) + 5-10L @20% (Rs 1,00,000) = Rs 1,12,500 (+ cess = Rs 1,17,000)
+  SAVING: Rs 3,12,000 saved (new regime) or Rs 1,95,000 saved (old regime)
+
+EXAMPLE 2 — Rs 1 crore profit:
+  Spot crypto: 30% flat = Rs 30,00,000 (+ cess = Rs 31,20,000)
+  Derivatives (new regime): 0-4L nil + 4-8L @5% (20K) + 8-12L @10% (40K) + 12-16L @15% (60K) + 16-20L @20% (80K) + 20-24L @25% (1L) + 24L-1Cr @30% (22.8L) = Rs 25,80,000 (+ cess = Rs 26,83,200)
+  Derivatives (old regime): 0-2.5L nil + 2.5-5L @5% (12.5K) + 5-10L @20% (1L) + 10L-1Cr @30% (27L) = Rs 28,12,500 (+ cess = Rs 29,25,000)
+  SAVING: Rs 4,36,800 (new regime) or Rs 1,95,000 (old regime)
+  PLUS at Rs 1 crore: all trading expenses (platform fees, internet, advisory) are deductible from derivatives income — NOTHING is deductible from spot crypto.
+
+KEY INSIGHT: The slab-rate advantage is MASSIVE at lower income levels (Rs 10-12L = zero tax vs 30% flat).
+At higher levels (Rs 1Cr+), the slab rates converge toward 30%, but derivatives STILL save money through:
+  1. Lower effective rate on the first Rs 24L of income (graduated slabs vs flat 30%)
+  2. Full business expense deduction (platform fees, internet, tools, advisory)
+  3. Loss set-off against other speculative income
+  4. 4-year loss carry-forward (spot crypto: NO carry-forward at all)
+
+IMPORTANT DISCLAIMER: The classification of crypto derivatives under Section 43(5) is based on
+practitioner consensus and successful tax filings. CBDT has not issued explicit guidance confirming
+this position. There is litigation risk. Always consult a qualified CA before filing.
 
 SECTION 194S — TDS OBLIGATIONS:
 - Exchange handles TDS for on-platform trades
